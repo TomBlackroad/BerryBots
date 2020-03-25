@@ -1,100 +1,49 @@
-
-"""
-Saves a series of snapshots with the current camera as snapshot_<width>_<height>_<nnn>.jpg
-Arguments:
-    --f <output folder>     default: current folder
-    --n <file name>         default: snapshot
-    --w <width px>          default: none
-    --h <height px>         default: none
-Buttons:
-    q           - quit
-    space bar   - save the snapshot
-    
-  
-"""
-
-import cv2
+# import the necessary packages
+from picamera.array import PiRGBArray
+from picamera import PiCamera
 import time
-import sys
-import argparse
-import os
+import cv2
 
-__author__ = "Tom Blackroad"
-__date__ = "01/06/2020"
+# initialize the camera and grab a reference to the raw camera cap$
+camera = PiCamera()
+camera.resolution = (640, 480)
+camera.framerate = 20
+camera.rotation = 180
+rawCapture = PiRGBArray(camera, size=(640, 480))
+
+# allow the camera to warmup
+time.sleep(0.1)
 
 
-def save_frames(width=0, height=0, name="frame", folder=".", raspi=True):
+def save_frames():
+  nSnap   = 0
+  fileName    = "%s/%s_" %(".", "Frame")
 
-    if raspi:
-        os.system('sudo modprobe bcm2835-v4l2')
-
-    cap = cv2.VideoCapture(0)
-    if width > 0 and height > 0:
-        print("Setting the custom Width and Height")
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-    try:
-        if not os.path.exists(folder):
-            os.makedirs(folder)
-            # ----------- CREATE THE FOLDER -----------------
-            folder = os.path.dirname(folder)
-            try:
-                os.stat(folder)
-            except:
-                os.mkdir(folder)
-    except:
-        pass
-
-    nSnap   = 0
-    w       = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-    h       = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-
-    fileName    = "%s/%s_%d_%d_" %(folder, name, w, h)
-    while True:
-        ret, frame = cap.read()
-
-        cv2.imshow('camera', frame)
-
-        key = cv2.waitKey(1) & 0xFF
-        if key == ord('q'):
-            break
-        if key == ord(' '):
-            print("Saving image ", nSnap)
-            cv2.imwrite("%s%d.jpg"%(fileName, nSnap), frame)
-            nSnap += 1
-
-    cap.release()
-    cv2.destroyAllWindows()
+  # capture frames from the camera
+  for frame in camera.capture_continuous(rawCapture, format="bgr", use_video_port=True):
+    # grab the raw NumPy array representing the image, then initialize the timestamp
+    # and occupied/unoccupied text
+    image = frame.array
+    
+    cv2.imshow('camera', image)
+    
+    key = cv2.waitKey(1) & 0xFF
+    rawCapture.truncate(0)
+    
+    if key == ord('q'):
+      break
+    if key == ord(' '):
+      print("Saving image ", nSnap)
+      cv2.imwrite("%s%d.jpg"%(fileName, nSnap), image)
+      nSnap += 1
 
 
 
 
 def main():
-    # ---- DEFAULT VALUES ---
-    SAVE_FOLDER = "."
-    FILE_NAME = "frame"
-    FRAME_WIDTH = 0
-    FRAME_HEIGHT = 0
-
-    # ----------- PARSE THE INPUTS -----------------
-    parser = argparse.ArgumentParser(
-        description="Saves snapshot from the camera. \n q to quit \n spacebar to save the snapshot")
-    parser.add_argument("--folder", default=SAVE_FOLDER, help="Path to the save folder (default: current)")
-    parser.add_argument("--name", default=FILE_NAME, help="Picture file name (default: snapshot)")
-    parser.add_argument("--dwidth", default=FRAME_WIDTH, type=int, help="<width> px (default the camera output)")
-    parser.add_argument("--dheight", default=FRAME_HEIGHT, type=int, help="<height> px (default the camera output)")
-    parser.add_argument("--raspi", default=False, type=bool, help="<bool> True if using a raspberry Pi")
-    args = parser.parse_args()
-
-    SAVE_FOLDER = args.folder
-    FILE_NAME = args.name
-    FRAME_WIDTH = args.dwidth
-    FRAME_HEIGHT = args.dheight
-
-
-    save_frames(width=args.dwidth, height=args.dheight, name=args.name, folder=args.folder, raspi=args.raspi)
-
-    print("Files saved")
+  save_frames()
+  
+  print("Files saved")
 
 if __name__ == "__main__":
-    main()
+  main()
