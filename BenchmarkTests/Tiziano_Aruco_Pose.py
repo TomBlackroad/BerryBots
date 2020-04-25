@@ -30,7 +30,7 @@ import cv2.aruco as aruco
 import sys, time, math
 
 #--- Define Tag
-id_to_find  = 20
+id_to_find  = 1
 marker_size  = 8 #- [cm]
 
 
@@ -87,19 +87,19 @@ parameters  = aruco.DetectorParameters_create()
 
 
 #--- Capture the videocamera (this may also be a video or a picture)
-cap = cv2.VideoCapture('/home/mbl/Documents/BerryBots/BenchmarkTests/h264video.h264')
+cap = cv2.VideoCapture('/home/mbl/Documents/BerryBots/BenchmarkTests/output2.avi')
 #-- Set the camera size as the one it was calibrated with
 #cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
 #cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 420)
 
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 420)
+
 #-- Font for the text in the image
 font = cv2.FONT_HERSHEY_PLAIN
 
-frame_width = int(cap.get(3))
-frame_height = int(cap.get(4))
-
-codec = cv2.VideoWriter_fourcc('X','V','I','D')
-out = cv2.VideoWriter('outputPose.avi',codec, 30, (frame_width,frame_height),0)
+codec = cv2.VideoWriter_fourcc('M','J','P','G')
+out = cv2.VideoWriter('outputPose2.avi',codec, 60, (640,420),0)
 
 
 while True:
@@ -107,7 +107,9 @@ while True:
     #-- Read the camera frame
     ret, frame = cap.read()
 
-    if ret == True:    
+    print("a")
+    if ret == True:
+        print("b")
 
         #-- Convert in gray scale
         gray    = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) #-- remember, OpenCV stores color images in Blue, Green, Red
@@ -115,59 +117,66 @@ while True:
         #-- Find all the aruco markers in the image
         corners, ids, rejected = aruco.detectMarkers(image=gray, dictionary=aruco_dict, parameters=parameters,
                                   cameraMatrix=camera_matrix, distCoeff=camera_distortion)
-        
-        if ids is not None and id_to_find in ids:
-            
+
+        print(ids)
+
+        if ids is not None:
+
+            print("cccccccccccccccccccccccccccccccccccccccccccccccccc")
             #-- ret = [rvec, tvec, ?]
             #-- array of rotation and position of each marker in camera frame
             #-- rvec = [[rvec_1], [rvec_2], ...]    attitude of the marker respect to camera frame
             #-- tvec = [[tvec_1], [tvec_2], ...]    position of the marker in camera frame
-            ret = aruco.estimatePoseSingleMarkers(corners, marker_size, camera_matrix, camera_distortion)
+            rvecs, tvecs, obj = aruco.estimatePoseSingleMarkers(corners, marker_size, camera_matrix, camera_distortion)
+            print(rvecs)
+            print(" ")
+            print(tvecs)
 
             #-- Unpack the output, get only the first
-            rvec, tvec = ret[0][0,0,:], ret[1][0,0,:]
+            #rvec, tvec = ret[0][0,0,:], ret[1][0,0,:]
+            #rvec, tvec = ret[0][0,0,:], ret[1][0,0,:]
 
             #-- Draw the detected marker and put a reference frame over it
-            aruco.drawDetectedMarkers(frame, corners)
-            aruco.drawAxis(frame, camera_matrix, camera_distortion, rvec, tvec, 10)
+            aruco.drawDetectedMarkers(gray, corners)
+            aruco.drawAxis(gray, camera_matrix, camera_distortion, rvecs[0,0,:], tvecs[0,0,:], 5)
 
             #-- Print the tag position in camera frame
-            str_position = "MARKER Position x=%4.0f  y=%4.0f  z=%4.0f"%(tvec[0], tvec[1], tvec[2])
-            cv2.putText(frame, str_position, (0, 100), font, 1, (0, 255, 0), 2, cv2.LINE_AA)
+            #str_position = "MARKER Position x=%4.0f  y=%4.0f  z=%4.0f"%(tvec[0], tvec[1], tvec[2])
+            #cv2.putText(frame, str_position, (0, 100), font, 1, (0, 255, 0), 2, cv2.LINE_AA)
 
             #-- Obtain the rotation matrix tag->camera
-            R_ct    = np.matrix(cv2.Rodrigues(rvec)[0])
+            R_ct    = np.matrix(cv2.Rodrigues(rvecs[0,0,:])[0])
             R_tc    = R_ct.T
 
             #-- Get the attitude in terms of euler 321 (Needs to be flipped first)
             roll_marker, pitch_marker, yaw_marker = rotationMatrixToEulerAngles(R_flip*R_tc)
 
             #-- Print the marker's attitude respect to camera frame
-            str_attitude = "MARKER Attitude r=%4.0f  p=%4.0f  y=%4.0f"%(math.degrees(roll_marker),math.degrees(pitch_marker),
-                                math.degrees(yaw_marker))
-            cv2.putText(frame, str_attitude, (0, 150), font, 1, (0, 255, 0), 2, cv2.LINE_AA)
+            #str_attitude = "MARKER Attitude r=%4.0f  p=%4.0f  y=%4.0f"%(math.degrees(roll_marker),math.degrees(pitch_marker), math.degrees(yaw_marker))
+            #cv2.putText(frame, str_attitude, (0, 150), font, 1, (0, 255, 0), 2, cv2.LINE_AA)
 
 
             #-- Now get Position and attitude f the camera respect to the marker
-            pos_camera = -R_tc*np.matrix(tvec).T
+            pos_camera = -R_tc*np.matrix(tvecs[0,0,:]).T
 
-            str_position = "CAMERA Position x=%4.0f  y=%4.0f  z=%4.0f"%(pos_camera[0], pos_camera[1], pos_camera[2])
-            cv2.putText(frame, str_position, (0, 200), font, 1, (0, 255, 0), 2, cv2.LINE_AA)
+            #str_position = "CAMERA Position x=%4.0f  y=%4.0f  z=%4.0f"%(pos_camera[0], pos_camera[1], pos_camera[2])
+            #cv2.putText(frame, str_position, (0, 200), font, 1, (0, 255, 0), 2, cv2.LINE_AA)
 
             #-- Get the attitude of the camera respect to the frame
             roll_camera, pitch_camera, yaw_camera = rotationMatrixToEulerAngles(R_flip*R_tc)
-            str_attitude = "CAMERA Attitude r=%4.0f  p=%4.0f  y=%4.0f"%(math.degrees(roll_camera),math.degrees(pitch_camera),
-                                math.degrees(yaw_camera))
-            cv2.putText(frame, str_attitude, (0, 250), font, 1, (0, 255, 0), 2, cv2.LINE_AA)
+            #str_attitude = "CAMERA Attitude r=%4.0f  p=%4.0f  y=%4.0f"%(math.degrees(roll_camera),math.degrees(pitch_camera), math.degrees(yaw_camera))
+            #cv2.putText(frame, str_attitude, (0, 250), font, 1, (0, 255, 0), 2, cv2.LINE_AA)
 
-            out.write(frame)
-
-            #--- Display the frame
-            cv2.imshow('frame', frame)
 
     # Break the loop
     else:
         break
+
+    out.write(gray)
+    #cv2.imshow('rawframe',frame)
+    cv2.imshow('grayframe',gray)
+    #cv2.imshow('frame', frame)
+    cv2.waitKey(0)
 
 # When everything done, release the video capture and video write objects
 cap.release()
